@@ -1,0 +1,34 @@
+{
+  "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
+
+    "noEmit": true,
+
+    /* 🔑 CORE FIXES */
+    "module": "CommonJS",
+    "moduleResolution": "node",
+
+    "target": "ES2020",
+
+    /* Remove DOM from server runtime issues */
+    "lib": ["ES2020"],
+
+    "jsx": "preserve",
+
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+
+    "baseUrl": ".",
+    "types": ["node", "vite/client"],
+
+    "paths": {
+      "@/*": ["./client/src/*"],
+      "@shared/*": ["./shared/*"]
+    }
+  }
+}
