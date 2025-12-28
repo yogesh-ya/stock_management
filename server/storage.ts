@@ -1,68 +1,101 @@
 import type { StockItemResponse, InvoiceResponse } from "@shared/schema";
-import { readStockFromExcel, writeStockToExcel } from "./excel/stockExcel";
-
-let stockItems: StockItemResponse[] = [];
-let invoices: InvoiceResponse[] = [];
+import {
+  readStockFromExcel,
+  writeStockToExcel,
+  appendStockToExcel,
+  markStockAsSoldInExcel,
+} from "./excel/stockExcel";
 
 class Storage {
-  constructor() {
-    readStockFromExcel().then(items => {
-      stockItems = items;
-      console.log(`Loaded ${items.length} stock items from Excel`);
-    });
-  }
-
   /* ---------------- STOCK ---------------- */
 
-  getStock(): StockItemResponse[] {
-    return stockItems;
+  /**
+   * Read stock from Excel.
+   * Excel is the single source of truth.
+   */
+  async getStock(): Promise<StockItemResponse[]> {
+    try {
+      const items = await readStockFromExcel();
+      return Array.isArray(items) ? items : [];
+    } catch (err) {
+      console.error("Failed to read stock from Excel:", err);
+      return [];
+    }
   }
 
-  addStockItem(item: StockItemResponse): StockItemResponse {
-    stockItems.push(item);
-    writeStockToExcel(stockItems);
+  /**
+   * Add ONE stock item.
+   * ⚡ Appends a single row (fast, no delete).
+   */
+  async addStockItem(item: StockItemResponse): Promise<StockItemResponse> {
+    await appendStockToExcel(item);
     return item;
   }
 
-  addMultipleStockItems(items: StockItemResponse[]): StockItemResponse[] {
-    stockItems.push(...items);
-    writeStockToExcel(stockItems);
-    return items;
-  }
-
-  markAsSold(serialNo: string): void {
-    const item = stockItems.find(s => s.serialNo === serialNo);
-    if (!item) {
-      throw new Error(`Stock not found for serialNo: ${serialNo}`);
+  /**
+   * Add MULTIPLE stock items (bulk upload).
+   * ⚠️ Full rewrite is acceptable ONLY here.
+   */
+  async addMultipleStockItems(
+    newItems: StockItemResponse[]
+  ): Promise<StockItemResponse[]> {
+    if (!Array.isArray(newItems) || newItems.length === 0) {
+      return [];
     }
 
-    item.sold = true;
-    writeStockToExcel(stockItems);
+    const existing = await this.getStock();
+    const combined = [...existing, ...newItems];
+
+    await writeStockToExcel(combined);
+    return newItems;
+  }
+
+  /**
+   * Mark a single stock item as SOLD.
+   * ⚡ Updates only the matched row.
+   */
+  async markAsSold(serialNo: string): Promise<void> {
+    if (!serialNo) {
+      throw new Error("serialNo is required");
+    }
+
+    const updated = await markStockAsSoldInExcel(serialNo);
+    if (!updated) {
+      throw new Error(`Stock not found for serialNo: ${serialNo}`);
+    }
   }
 
   /* ---------------- INVOICES ---------------- */
 
+  /**
+   * Invoices are stored in memory only (for now).
+   */
   getInvoices(): InvoiceResponse[] {
     return invoices;
   }
 
-  addInvoice(invoice: InvoiceResponse): InvoiceResponse {
+  /**
+   * Add invoice and mark stock items as sold.
+   */
+  async addInvoice(invoice: InvoiceResponse): Promise<InvoiceResponse> {
     if (!Array.isArray(invoice.items) || invoice.items.length === 0) {
       throw new Error("Invoice items missing");
     }
 
-    // mark stock as sold
-    invoice.items.forEach(item => {
+    for (const item of invoice.items) {
       if (!item.serialNo) {
         throw new Error("Invoice item serialNo missing");
       }
-      this.markAsSold(item.serialNo);
-    });
+      await this.markAsSold(item.serialNo);
+    }
 
     invoices.push(invoice);
-
     return invoice;
   }
 }
 
+/* ---------------- IN-MEMORY ONLY ---------------- */
+const invoices: InvoiceResponse[] = [];
+
+/* ---------------- EXPORT ---------------- */
 export const storage = new Storage();

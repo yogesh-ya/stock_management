@@ -77,6 +77,10 @@ export async function writeInvoicesToExcel(rows: any[]) {
 /* ================= APPEND (SAFE & ORDERED) ================= */
 
 export async function appendInvoiceToExcel(invoice: InvoiceResponse) {
+  if (!invoice || !Array.isArray(invoice.items) || invoice.items.length === 0) {
+    throw new Error("Invoice items missing or invalid");
+  }
+
   const sheet = await getInvoiceSheet();
 
   const rows = invoice.items.map(item => ({
@@ -91,7 +95,7 @@ export async function appendInvoiceToExcel(invoice: InvoiceResponse) {
     model: item.model,
     qty: item.qty,
     rate: item.rate,
-    paymentStatus: invoice.paymentStatus, // PAID / NOT_PAID
+    paymentStatus: invoice.paymentStatus,
   }));
 
   await sheet.addRows(rows);

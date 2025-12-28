@@ -13,43 +13,56 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  
+
   // GET /api/stock - list all items
-  app.get(API_ROUTES.STOCK_LIST, (req, res) => {
-    const items = storage.getStock();
-    res.json(items);
+  app.get("/api/stock", async (req, res) => {
+    const items = await storage.getStock();
+    res.status(200).json(items);
   });
 
   // POST /api/stock - add single stock item
-  app.post(API_ROUTES.STOCK_ADD, (req, res) => {
+  app.post("/api/stock", async (req, res) => {
     try {
-      const { serialNo, date, brand, model, purchasePrice, salePrice, gstPercent, status, hsn, paymentStatus } = req.body;
-      
-      if (!serialNo || !brand || !model || salePrice === undefined) {
+      const {
+        serialNo,
+        date,
+        brand,
+        model,
+        purchasePrice,
+        salePrice,
+        gstPercent,
+        hsn,
+        sold,
+      } = req.body;
+
+      // ✅ proper validation
+      if (!serialNo || !brand || !model) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      const existing = storage.getStock().find(s => s.serialNo === serialNo);
+      // ✅ async read
+      const stock = await storage.getStock();
+      const existing = stock.find(s => s.serialNo === serialNo);
       if (existing) {
         return res.status(400).json({ error: "Serial number already exists" });
       }
 
       const item: StockItemResponse = {
         serialNo,
-        date: date || new Date().toISOString().split('T')[0],
+        date: date || new Date().toISOString().split("T")[0],
         brand,
         model,
         purchasePrice: Number(purchasePrice) || 0,
-        salePrice: Number(salePrice),
+        salePrice: Number(salePrice) || 0,
         gstPercent: Number(gstPercent) || 18,
-        status: status || "Available",
         hsn: hsn || "",
-        sold: false,
+        sold: Boolean(sold),
       };
 
-      const saved = storage.addStockItem(item);
+      const saved = await storage.addStockItem(item);
       res.status(201).json(saved);
     } catch (error) {
+      console.error("POST /api/stock failed:", error); // 🔑 DO NOT REMOVE
       res.status(500).json({ error: "Failed to add stock item" });
     }
   });
@@ -58,7 +71,7 @@ export async function registerRoutes(
   app.post("/api/stock/bulk", (req, res) => {
     try {
       const { items } = req.body;
-      
+
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ error: "Invalid items data" });
       }
@@ -94,21 +107,23 @@ export async function registerRoutes(
   });
 
   // POST /api/invoices - add invoice
-app.post("/api/invoices", async (req, res) => {
-  try {
-    const invoice = storage.addInvoice(req.body);
-    // 🔥 SAVE TO EXCEL HERE
-    await appendInvoiceToExcel(invoice);
+  app.post("/api/invoices", async (req, res) => {
+    try {
+      const invoice = await storage.addInvoice(req.body); // 🔑 FIX
 
-    res.json(invoice);
-  } catch (e) {
-    console.error("Invoice creation error:", e);
-    res.status(500).json({
-      error: "Failed to create invoice",
-      details: String(e),
-    });
-  }
-});
+      // save invoice to excel
+      await appendInvoiceToExcel(invoice);
+
+      res.status(201).json(invoice);
+    } catch (e) {
+      console.error("Invoice creation error:", e);
+      res.status(500).json({
+        error: "Failed to create invoice",
+        details: String(e),
+      });
+    }
+  });
+
 
   return httpServer;
 }

@@ -23,6 +23,7 @@ export default function StockManagement() {
   const fetchStock = async () => {
     try {
       const res = await fetch(API_ROUTES.STOCK_LIST);
+      console.log(res)
       const data = await res.json();
       setItems(Array.isArray(data) ? data : []);
     } catch {
@@ -35,51 +36,55 @@ export default function StockManagement() {
     setLoading(true);
     setMessage('');
 
-    if (!serialNo || !brand || !model || !salePrice) {
+    if (!serialNo || !brand || !model) {
       setMessage('Please fill all required fields');
       setLoading(false);
       return;
     }
 
     try {
-      const res = await fetch(API_ROUTES.STOCK_ADD, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serialNo,
-          date,
-          brand,
-          model,
-          purchasePrice: Number(purchasePrice),
-          salePrice: Number(salePrice),
-          gstPercent: Number(gstPercent),
-          hsn,
-          status,
-        }),
-      });
+  const res = await fetch(API_ROUTES.STOCK_ADD, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      serialNo,
+      date,
+      brand,
+      model,
+      purchasePrice: Number(purchasePrice),
+      salePrice: Number(salePrice),
+      gstPercent: Number(gstPercent),
+      hsn,
+      sold: status === "Sold", // 🔑 map UI → backend
+    }),
+  });
 
-      if (!res.ok) {
-        const err = await res.json();
-        setMessage(err.error || 'Failed to add item');
-        return;
-      }
+  if (!res.ok) {
+    const err = await res.json();
+    setMessage(err.error || "Failed to add item");
+    return;
+  }
 
-      setMessage('Item added successfully');
-      setSerialNo('');
-      setDate(new Date().toISOString().split('T')[0]);
-      setBrand('');
-      setModel('');
-      setPurchasePrice('');
-      setSalePrice('');
-      setGstPercent('18');
-      setHsn('');
-      setStatus('Available');
-      await fetchStock();
-    } catch {
-      setMessage('Error adding item');
-    } finally {
-      setLoading(false);
-    }
+  setMessage("Item added successfully");
+
+  // reset form
+  setSerialNo("");
+  setDate(new Date().toISOString().split("T")[0]);
+  setBrand("");
+  setModel("");
+  setPurchasePrice("");
+  setSalePrice("");
+  setGstPercent("18");
+  setHsn("");
+  setStatus("Available");
+
+  await fetchStock();
+} catch (err) {
+  console.error(err);
+  setMessage("Error adding item");
+} finally {
+  setLoading(false);
+}
   };
 
   /* ================= STYLES ================= */
